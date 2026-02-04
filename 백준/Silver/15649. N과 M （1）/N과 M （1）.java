@@ -1,36 +1,45 @@
-import java.io.BufferedReader;
-import java.io.IOException;
-import java.io.InputStreamReader;
+
+import java.io.*;
+import java.util.*;
 
 public class Main {
 
-  public static void main(String[] args) throws IOException {
-    BufferedReader br = new BufferedReader(new InputStreamReader(System.in));
-    String str = br.readLine();
-    int n = Integer.parseInt(str.split(" ")[0]);
-    int m = Integer.parseInt(str.split(" ")[1]);
-    nm(0,n,m);
-    System.out.println(answer.toString());
-  }
+	public static void main(String[] args) throws Exception {
+		Scanner sc = new Scanner(System.in);
 
-  static boolean[] b = new boolean[10];
-  static int[] a = new int[10];
-  static StringBuilder answer = new StringBuilder();
+		int n = sc.nextInt();
+		int m = sc.nextInt();
 
-  static void nm(int index, int n, int m) {
-    if(index == m) {
-      for(int i = 0;i<m;i++) {
-        answer.append(a[i]);
-        if(i != m-1) answer.append(" ");
-      } answer.append("\n");
-      return;
-    }
-    for (int i=1; i<=n; i++) {
-      if (b[i]) continue;
-      b[i] = true;
-      a[index] = i;
-      nm(index+1, n, m);
-      b[i] = false;
-    }
-  }
+		boolean[] visited = new boolean[n];
+		List<Integer> output = new ArrayList<>();
+
+		perm(visited, output, 0, m);
+
+		sc.close();
+	}
+
+	static void perm(boolean[] visited, List<Integer> output, int depth, int m) {
+		if (depth == m) {
+			for (int i = 0; i < output.size(); i++) {
+				System.out.print(output.get(i));
+				if (i != output.size() - 1) {
+					System.out.print(" ");
+				}
+			}
+			System.out.println();
+			return;
+		}
+
+		for (int i = 0; i < visited.length; i++) {
+			if (!visited[i]) {
+				visited[i] = true;
+				output.add(i + 1);
+				perm(visited, output, depth + 1, m);
+				output.remove(output.size() - 1);
+
+				visited[i] = false;
+			}
+		}
+	}
+
 }
