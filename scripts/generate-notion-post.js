@@ -265,6 +265,9 @@ async function postAlgoToNotion(title, content, problemInfo, tags) {
       if (dbProps['Platform']?.type === 'select' && problemInfo.platform) {
         properties['Platform'] = { select: { name: problemInfo.platform } };
       }
+      if (dbProps['생성일']?.type === 'date') {
+        properties['생성일'] = { date: { start: new Date().toISOString().split('T')[0] } };
+      }
     } catch (e) {
       console.log('⚠️  Could not read DB schema, using title only');
     }
@@ -337,7 +340,12 @@ async function postToNotion(title, content, problemInfo, tags) {
         url: problemInfo.url,
       };
     }
-    
+
+    // 생성일
+    properties['생성일'] = {
+      date: { start: new Date().toISOString().split('T')[0] },
+    };
+
     const response = await notion.pages.create({
       parent: {
         database_id: process.env.NOTION_DATABASE_ID,
