@@ -1,0 +1,43 @@
+name: Auto Notion Post
+
+on:
+  push:
+    paths:
+      - '백준/**/*.java'
+      - '프로그래머스/**/*.java'
+      - '백준/**/*.py'
+      - '백준/**/*.cpp'
+
+jobs:
+  create-notion-post:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 2
+      
+      - name: Get changed files
+        id: changed-files
+        run: |
+          echo "files=$(git diff --name-only HEAD~1 HEAD | grep -E '\.(java|py|cpp)$' | tr '\n' ' ')" >> $GITHUB_OUTPUT
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+      
+      - name: Install dependencies
+        run: |
+          cd scripts
+          npm install
+      
+      - name: Generate Notion Post
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          NOTION_TOKEN: ${{ secrets.NOTION_TOKEN }}
+          NOTION_DATABASE_ID: ${{ secrets.NOTION_DATABASE_ID }}
+          CHANGED_FILES: ${{ steps.changed-files.outputs.files }}
+        run: |
+          node scripts/generate-notion-post.js
