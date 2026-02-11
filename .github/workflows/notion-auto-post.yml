@@ -68,6 +68,7 @@ jobs:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           NOTION_TOKEN: ${{ secrets.NOTION_TOKEN }}
           NOTION_DATABASE_ID: ${{ secrets.NOTION_DATABASE_ID }}
+          NOTION_ALGO_DATABASE_ID: ${{ secrets.NOTION_ALGO_DATABASE_ID }}
           CHANGED_FILES: ${{ steps.changed-files.outputs.files }}
         run: |
           node scripts/generate-notion-post.js

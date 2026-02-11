@@ -163,6 +163,137 @@ function extractTags(content, readmeContent) {
   return tags;
 }
 
+async function generateAlgoContent(code, problemInfo, readmeContent) {
+  const language = problemInfo.language || 'java';
+
+  const message = await anthropic.messages.create({
+    model: 'claude-sonnet-4-20250514',
+    max_tokens: 8000,
+    system: `너는 알고리즘을 공부하는 대학생 개발자야. 문제를 풀고 나서 사용한 알고리즘에 대한 학습 정리 글을 블로그에 쓰는 중이야.
+이 글의 목적은 "문제 풀이"가 아니라 "알고리즘 자체를 이해하고 정리"하는 거야. 문제는 알고리즘을 설명하기 위한 사례로만 활용해.
+
+절대 AI가 쓴 것처럼 쓰지 마. 아래 규칙을 반드시 지켜:
+- 1인칭 시점 ("~를 정리해봤다", "~가 헷갈렸는데 이번에 확실히 알게 됐다")
+- 교과서 복붙 금지. 내가 이해한 방식으로 풀어서 설명
+- 다른 사람이 읽고 이 알고리즘을 이해할 수 있을 정도로 친절하게
+- 코드 예시는 이번에 푼 문제의 코드를 활용
+- 이 알고리즘이 어떤 상황에서 쓰이는지 실전 감각을 줘`,
+    messages: [
+      {
+        role: 'user',
+        content: `아래 문제를 풀 때 사용한 핵심 알고리즘/자료구조에 대한 학습 정리 글을 써줘.
+
+## 문제 정보
+- 문제: ${problemInfo.title}
+- 플랫폼: ${problemInfo.platform}
+- 난이도: ${problemInfo.difficulty || '알 수 없음'}
+${problemInfo.url ? `- 링크: ${problemInfo.url}` : ''}
+
+${readmeContent ? `## 문제 설명 (BaekjoonHub README)\n${readmeContent}\n` : ''}
+
+## 풀이 코드
+\`\`\`${language}
+${code}
+\`\`\`
+
+---
+
+먼저 이 코드에서 사용된 핵심 알고리즘/자료구조가 뭔지 파악하고, 그 알고리즘에 대한 학습 정리 글을 아래 형식으로 써줘.
+제목은 "[알고리즘] {알고리즘명} - {문제이름}으로 정리하는 {알고리즘 한줄 설명}" 형태로 만들어줘.
+
+# {알고리즘명}이란?
+(이 알고리즘이 뭔지, 어떤 문제를 해결하는 건지 내 말로 쉽게 설명. 비유를 써도 좋음)
+
+# 핵심 원리
+(동작 방식을 단계별로 설명. 그림이 필요하면 텍스트로 표현. 시간복잡도/공간복잡도 분석 포함)
+
+# 언제 쓰는가?
+(이 알고리즘을 써야 하는 상황의 특징. "이런 조건이 보이면 이 알고리즘을 떠올려라" 수준으로)
+
+# 코드 템플릿
+(이 알고리즘의 기본 뼈대 코드. 이번 문제 코드에서 핵심 부분을 추출해서 범용적인 템플릿으로 정리)
+\`\`\`${language}
+// 템플릿 코드
+\`\`\`
+
+# 이번 문제에 적용
+(이 문제에서 알고리즘이 어떻게 쓰였는지 구체적으로. 문제의 어떤 조건이 이 알고리즘과 맞아떨어지는지)
+
+# 주의할 점 & 자주 하는 실수
+(이 알고리즘을 쓸 때 흔히 하는 실수, 엣지케이스, 함정)
+
+# 관련 문제 유형
+(이 알고리즘으로 풀 수 있는 대표적인 문제 유형들)`,
+      },
+    ],
+  });
+
+  return message.content[0].text;
+}
+
+async function postAlgoToNotion(title, content, problemInfo, tags) {
+  const algoDatabaseId = process.env.NOTION_ALGO_DATABASE_ID;
+  if (!algoDatabaseId) {
+    console.log('⏭️  NOTION_ALGO_DATABASE_ID not set, skipping algorithm post');
+    return null;
+  }
+
+  try {
+    const blocks = markdownToBlocks(content);
+
+    const MAX_BLOCKS = 100;
+    const initialBlocks = blocks.slice(0, MAX_BLOCKS);
+
+    const properties = {
+      '이름': {
+        title: [{ text: { content: title } }],
+      },
+      '태그': {
+        multi_select: tags.map(tag => ({ name: tag })),
+      },
+    };
+
+    if (problemInfo.difficulty) {
+      properties['난이도'] = {
+        select: { name: problemInfo.difficulty },
+      };
+    }
+
+    if (problemInfo.platform) {
+      properties['Platform'] = {
+        select: { name: problemInfo.platform },
+      };
+    }
+
+    const response = await notion.pages.create({
+      parent: { database_id: algoDatabaseId },
+      properties,
+      children: initialBlocks,
+    });
+
+    if (blocks.length > MAX_BLOCKS) {
+      const remainingBlocks = blocks.slice(MAX_BLOCKS);
+      for (let i = 0; i < remainingBlocks.length; i += MAX_BLOCKS) {
+        const chunk = remainingBlocks.slice(i, i + MAX_BLOCKS);
+        await notion.blocks.children.append({
+          block_id: response.id,
+          children: chunk,
+        });
+      }
+    }
+
+    console.log(`✅ Algorithm page created: ${response.url}`);
+    return response;
+  } catch (error) {
+    console.error('❌ Error creating algorithm page:');
+    console.error('Message:', error.message);
+    if (error.body) {
+      console.error('Details:', JSON.stringify(error.body, null, 2));
+    }
+    throw error;
+  }
+}
+
 async function postToNotion(title, content, problemInfo, tags) {
   try {
     const blocks = markdownToBlocks(content);
@@ -290,9 +421,19 @@ async function main() {
       
       const title = `[${problemInfo.platform}] ${problemInfo.problemNumber ? `${problemInfo.problemNumber}. ` : ''}${problemInfo.title}`;
       
-      console.log('📤 Posting to Notion...');
+      console.log('📤 Posting to Notion (풀이 회고)...');
       await postToNotion(title, content, problemInfo, tags);
-      
+
+      // 알고리즘 학습 포스트 생성
+      console.log('🤖 Generating algorithm study post...');
+      const algoContent = await generateAlgoContent(code, problemInfo, readmeContent);
+      const algoTitleMatch = algoContent.match(/^#\s*(.+)/m);
+      const algoTitle = algoTitleMatch ? algoTitleMatch[1] : `[알고리즘] ${problemInfo.title}`;
+      const algoTags = extractTags(algoContent, readmeContent);
+
+      console.log('📤 Posting to Notion (알고리즘 학습)...');
+      await postAlgoToNotion(algoTitle, algoContent, problemInfo, algoTags);
+
       console.log('✨ Done!\n');
     } catch (error) {
       console.error(`❌ Error processing ${file}:`, error.message);
