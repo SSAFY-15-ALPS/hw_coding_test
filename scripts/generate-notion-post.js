@@ -263,6 +263,18 @@ async function main() {
       const code = fs.readFileSync(file, 'utf-8');
       const problemInfo = parseFilePath(file);
 
+      // 난이도 필터: 백준 Gold 이상, SWEA D4 이상만 AI 분석
+      const allowedBaekjoon = ['Gold', 'Platinum', 'Diamond', 'Ruby'];
+      const allowedSwea = ['D4', 'D5'];
+      if (problemInfo.platform === '백준' && !allowedBaekjoon.includes(problemInfo.difficulty)) {
+        console.log(`⏭️  Skipped (${problemInfo.difficulty}): 백준 Gold 이상만 분석`);
+        continue;
+      }
+      if (problemInfo.platform === 'SWEA' && !allowedSwea.includes(problemInfo.difficulty)) {
+        console.log(`⏭️  Skipped (${problemInfo.difficulty}): SWEA D4 이상만 분석`);
+        continue;
+      }
+
       // BaekjoonHub가 생성한 README에서 문제 설명, 분류, 성능 정보 읽기
       const readmePath = file.replace(/[^/]+$/, 'README.md');
       let readmeContent = '';

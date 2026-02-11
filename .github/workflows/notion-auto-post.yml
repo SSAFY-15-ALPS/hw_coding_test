@@ -3,10 +3,12 @@ name: Auto Notion Post
 on:
   push:
     paths:
-      - '백준/**/*.java'
-      - 'SWEA/**/*.java'
-      - '백준/**/*.py'
-      - '백준/**/*.cpp'
+      - '백준/Gold/**'
+      - '백준/Platinum/**'
+      - '백준/Diamond/**'
+      - '백준/Ruby/**'
+      - 'SWEA/D4/**'
+      - 'SWEA/D5/**'
   workflow_dispatch:
     inputs:
       file_path:
