@@ -244,25 +244,29 @@ async function postAlgoToNotion(title, content, problemInfo, tags) {
     const MAX_BLOCKS = 100;
     const initialBlocks = blocks.slice(0, MAX_BLOCKS);
 
+    // 새 DB는 제목만 필수, 나머지 속성은 있으면 추가
     const properties = {
       '이름': {
         title: [{ text: { content: title } }],
       },
-      '태그': {
-        multi_select: tags.map(tag => ({ name: tag })),
-      },
     };
 
-    if (problemInfo.difficulty) {
-      properties['난이도'] = {
-        select: { name: problemInfo.difficulty },
-      };
-    }
+    // DB에 존재하는 속성만 동적으로 추가
+    try {
+      const db = await notion.databases.retrieve({ database_id: algoDatabaseId });
+      const dbProps = db.properties;
 
-    if (problemInfo.platform) {
-      properties['Platform'] = {
-        select: { name: problemInfo.platform },
-      };
+      if (dbProps['태그']?.type === 'multi_select') {
+        properties['태그'] = { multi_select: tags.map(tag => ({ name: tag })) };
+      }
+      if (dbProps['난이도']?.type === 'select' && problemInfo.difficulty) {
+        properties['난이도'] = { select: { name: problemInfo.difficulty } };
+      }
+      if (dbProps['Platform']?.type === 'select' && problemInfo.platform) {
+        properties['Platform'] = { select: { name: problemInfo.platform } };
+      }
+    } catch (e) {
+      console.log('⚠️  Could not read DB schema, using title only');
     }
 
     const response = await notion.pages.create({
