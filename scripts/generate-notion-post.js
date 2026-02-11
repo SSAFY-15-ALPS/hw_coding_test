@@ -11,54 +11,63 @@ const notion = new Client({
   auth: process.env.NOTION_TOKEN,
 });
 
-async function generateContent(code, problemInfo) {
+async function generateContent(code, problemInfo, readmeContent) {
+  const language = problemInfo.language || 'java';
+
   const message = await anthropic.messages.create({
     model: 'claude-sonnet-4-20250514',
-    max_tokens: 4000,
+    max_tokens: 8000,
+    system: `너는 알고리즘 문제를 직접 푼 대학생 개발자야. 문제를 풀고 나서 자기 블로그에 풀이를 정리하는 중이야.
+절대 AI가 쓴 것처럼 쓰지 마. 아래 규칙을 반드시 지켜:
+- 1인칭 시점으로 작성 ("~했다", "~인 것 같다", "~해서 좀 헤맸다")
+- 교과서적인 설명 금지. 본인이 실제로 풀면서 겪은 것처럼 자연스럽게
+- 뻔한 말 반복 금지 ("이 문제는 ~를 활용하는 문제이다" 같은 식 X)
+- 구체적으로 코드의 어떤 부분이 왜 그렇게 짜여졌는지 설명
+- 틀릴 뻔했거나 실수하기 쉬운 부분을 구체적으로 짚어줘
+- 시간복잡도/공간복잡도 분석을 자연스럽게 녹여서 설명
+- 다른 접근법이 있다면 왜 이 방법을 선택했는지도 언급`,
     messages: [
       {
         role: 'user',
-        content: `다음 백준 문제 풀이 코드를 분석해서 상세한 회고를 작성해줘.
+        content: `아래 문제 풀이에 대한 상세한 회고를 작성해줘.
 
-문제: ${problemInfo.title}
-플랫폼: ${problemInfo.platform}
-문제번호: ${problemInfo.problemNumber}
+## 문제 정보
+- 문제: ${problemInfo.title}
+- 플랫폼: ${problemInfo.platform}
+- 문제번호: ${problemInfo.problemNumber}
+- 난이도: ${problemInfo.difficulty || '알 수 없음'}
+${problemInfo.url ? `- 링크: ${problemInfo.url}` : ''}
 
-코드:
-\`\`\`java
+${readmeContent ? `## 문제 설명 (BaekjoonHub README)\n${readmeContent}\n` : ''}
+
+## 내 코드
+\`\`\`${language}
 ${code}
 \`\`\`
 
-아래 형식으로 마크다운을 작성해줘:
+---
+
+아래 형식대로 마크다운을 작성해줘. 각 섹션을 충실하게, 구체적으로 써줘.
+
+# 문제 분석
+(문제가 결국 뭘 요구하는 건지 내 말로 정리. 입출력 조건에서 주의할 점, 제약 조건이 풀이 방향에 어떤 영향을 주는지)
 
 # 접근 방식
-(코드를 분석해서 어떤 알고리즘/자료구조를 사용했는지, 왜 이 방법을 선택했을지 설명)
-
-# 신경써야 할 부분
-* (핵심 포인트 1)
-* (핵심 포인트 2)
-* (핵심 포인트 3)
+(처음에 어떻게 접근했는지. 왜 이 알고리즘/자료구조를 선택했는지. 다른 방법도 떠올렸다면 왜 이걸로 갔는지. 시간복잡도 분석도 자연스럽게 포함)
 
 # 풀이 과정
-(코드의 주요 로직을 단계별로 설명. 초기화 → 메인 로직 → 결과 출력 순서로)
+(코드를 단계별로 설명. 그냥 "입력받고 처리한다"가 아니라, 핵심 로직이 왜 그렇게 동작하는지 구체적으로. 변수나 배열의 역할, 조건문의 의미 등)
+
+# 주의할 점 & 실수하기 쉬운 부분
+(엣지 케이스, 인덱스 실수, 범위 처리, 초기값 설정 등 구체적으로. "이거 빼먹으면 틀린다" 수준으로)
 
 # 최종 코드
-\`\`\`java
+\`\`\`${language}
 ${code}
 \`\`\`
 
-# TIL
-
-## 배웠던 점
-* (이 문제에서 배운 알고리즘 개념)
-* (새로 알게 된 테크닉)
-* (성능 최적화 방법)
-
-## 어려웠던 점
-* (코드를 보고 추론한 어려웠을 부분 1)
-* (코드를 보고 추론한 어려웠을 부분 2)
-
-중요: 실제로 코드를 작성한 사람의 입장에서, 1인칭 시점으로 작성해줘. "~했다", "~를 깨달았다" 같은 톤으로.`,
+# TIL (Today I Learned)
+(이 문제를 통해 배운 것, 다음에 비슷한 문제를 만나면 어떻게 접근할지, 더 나은 풀이가 있다면 어떤 건지)`,
       },
     ],
   });
@@ -66,21 +75,30 @@ ${code}
   return message.content[0].text;
 }
 
+function detectLanguage(filePath) {
+  if (filePath.endsWith('.java')) return 'java';
+  if (filePath.endsWith('.py')) return 'python';
+  if (filePath.endsWith('.cpp') || filePath.endsWith('.cc')) return 'cpp';
+  return 'plain text';
+}
+
 function parseFilePath(filePath) {
   const parts = filePath.split('/');
-  
+  const language = detectLanguage(filePath);
+
   // 백준 (난이도별 폴더 구조)
   if (parts[0] === '백준') {
     const difficulty = parts[1]; // Bronze, Silver, Gold, Platinum, Diamond
     const folderName = parts[2]; // "10998.A×B"
     const match = folderName.match(/^(\d+)\.(.*)/);
-    
+
     return {
       platform: '백준',
       problemNumber: match ? match[1] : '',
       title: match ? match[2].replace(/_/g, ' ').replace(/×/g, 'x') : folderName,
-      difficulty: difficulty, // Bronze, Silver 등
+      difficulty: difficulty,
       url: match ? `https://www.acmicpc.net/problem/${match[1]}` : '',
+      language,
     };
   }
   
@@ -98,9 +116,10 @@ function parseFilePath(filePath) {
       title: match ? match[2].replace(/_/g, ' ') : folderName,
       difficulty: level,
       url: match ? `https://swexpertacademy.com/main/code/problem/problemDetail.do?contestProbId=${match[1]}` : '',
+      language,
     };
   }
-  
+
   // 프로그래머스 등 다른 플랫폼
   return {
     platform: parts[0],
@@ -108,36 +127,39 @@ function parseFilePath(filePath) {
     problemNumber: '',
     difficulty: null,
     url: '',
+    language,
   };
 }
 
-function extractTags(content) {
+function extractTags(content, readmeContent) {
   const tags = ['Algorithm', 'PS'];
-  
-  const lowerContent = content.toLowerCase();
-  
-  if (lowerContent.includes('dp') || lowerContent.includes('동적 계획법') || lowerContent.includes('dynamic programming')) {
-    tags.push('DP');
+
+  const combined = (content + ' ' + readmeContent).toLowerCase();
+
+  const tagRules = [
+    { tag: 'DP', keywords: ['dp', '동적 계획법', 'dynamic programming', '메모이제이션', 'memoization'] },
+    { tag: 'DFS', keywords: ['dfs', '깊이 우선', 'depth first', '백트래킹', 'backtracking'] },
+    { tag: 'BFS', keywords: ['bfs', '너비 우선', 'breadth first'] },
+    { tag: 'Greedy', keywords: ['그리디', 'greedy', '탐욕'] },
+    { tag: 'Binary Search', keywords: ['이분 탐색', 'binary search', '이진 탐색'] },
+    { tag: 'Graph', keywords: ['그래프', 'graph', '다익스트라', 'dijkstra', '플로이드', 'floyd'] },
+    { tag: 'Tree', keywords: ['트리', 'tree'] },
+    { tag: 'Implementation', keywords: ['구현', 'implementation', '시뮬레이션', 'simulation'] },
+    { tag: 'String', keywords: ['문자열', 'string', '파싱', 'parsing'] },
+    { tag: 'Math', keywords: ['수학', 'math', '정수론', '소수', 'prime'] },
+    { tag: 'Stack/Queue', keywords: ['스택', 'stack', '큐', 'queue', 'deque'] },
+    { tag: 'Sorting', keywords: ['정렬', 'sorting', 'sort'] },
+    { tag: 'Divide and Conquer', keywords: ['분할 정복', 'divide and conquer'] },
+    { tag: 'Heap', keywords: ['힙', 'heap', '우선순위 큐', 'priority queue'] },
+    { tag: 'Brute Force', keywords: ['브루트포스', 'brute force', '완전 탐색', '완전탐색'] },
+  ];
+
+  for (const { tag, keywords } of tagRules) {
+    if (keywords.some(kw => combined.includes(kw))) {
+      tags.push(tag);
+    }
   }
-  if (lowerContent.includes('dfs') || lowerContent.includes('깊이 우선 탐색')) {
-    tags.push('DFS');
-  }
-  if (lowerContent.includes('bfs') || lowerContent.includes('너비 우선 탐색')) {
-    tags.push('BFS');
-  }
-  if (lowerContent.includes('그리디') || lowerContent.includes('greedy')) {
-    tags.push('Greedy');
-  }
-  if (lowerContent.includes('이분 탐색') || lowerContent.includes('binary search')) {
-    tags.push('Binary Search');
-  }
-  if (lowerContent.includes('그래프')) {
-    tags.push('Graph');
-  }
-  if (lowerContent.includes('트리')) {
-    tags.push('Tree');
-  }
-  
+
   return tags;
 }
 
@@ -240,12 +262,19 @@ async function main() {
       
       const code = fs.readFileSync(file, 'utf-8');
       const problemInfo = parseFilePath(file);
-      
+
+      // BaekjoonHub가 생성한 README에서 문제 설명, 분류, 성능 정보 읽기
+      const readmePath = file.replace(/[^/]+$/, 'README.md');
+      let readmeContent = '';
+      if (fs.existsSync(readmePath)) {
+        readmeContent = fs.readFileSync(readmePath, 'utf-8');
+      }
+
       console.log('🤖 Generating content with Claude...');
-      const content = await generateContent(code, problemInfo);
+      const content = await generateContent(code, problemInfo, readmeContent);
       
       console.log('🏷️  Extracting tags...');
-      const tags = extractTags(content);
+      const tags = extractTags(content, readmeContent);
       
       const title = `[${problemInfo.platform}] ${problemInfo.problemNumber ? `${problemInfo.problemNumber}. ` : ''}${problemInfo.title}`;
       
