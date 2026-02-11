@@ -30,17 +30,19 @@ jobs:
           # 한글 파일 경로가 이스케이프되지 않도록 설정
           git config core.quotePath false
 
+          # 멀티라인 출력 (파일 경로에 공백이 포함될 수 있으므로 줄바꿈으로 구분)
+          echo "files<<FILELIST_EOF" >> $GITHUB_OUTPUT
           if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
-            echo "files=${{ github.event.inputs.file_path }}" >> $GITHUB_OUTPUT
+            echo "${{ github.event.inputs.file_path }}" >> $GITHUB_OUTPUT
           else
             # 백준, SWEA 코드 파일 찾기
-            CHANGED=$(git diff --name-only HEAD~1 HEAD 2>/dev/null | grep -E '(백준|SWEA)/.*\.(java|py|cpp)$' | tr '\n' ' ')
+            CHANGED=$(git diff --name-only HEAD~1 HEAD 2>/dev/null | grep -E '(백준|SWEA)/.*\.(java|py|cpp)$')
             if [ -z "$CHANGED" ]; then
-              # git diff 실패 시 최근 추가된 파일 찾기
-              CHANGED=$(git log -1 --name-only --pretty=format: | grep -E '(백준|SWEA)/.*\.(java|py|cpp)$' | tr '\n' ' ')
+              CHANGED=$(git log -1 --name-only --pretty=format: | grep -E '(백준|SWEA)/.*\.(java|py|cpp)$')
             fi
-            echo "files=$CHANGED" >> $GITHUB_OUTPUT
+            echo "$CHANGED" >> $GITHUB_OUTPUT
           fi
+          echo "FILELIST_EOF" >> $GITHUB_OUTPUT
       
       - name: Debug - Show files
         run: |

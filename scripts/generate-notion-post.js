@@ -215,20 +215,27 @@ async function postToNotion(title, content, problemInfo, tags) {
 }
 
 async function main() {
-  const changedFiles = process.env.CHANGED_FILES?.trim().split(' ').filter(Boolean) || [];
-  
+  const changedFiles = process.env.CHANGED_FILES?.trim().split('\n').filter(Boolean) || [];
+
   if (changedFiles.length === 0) {
     console.log('No code files changed.');
     return;
   }
 
-  for (const file of changedFiles) {
+  for (let file of changedFiles) {
     try {
       console.log(`\n📝 Processing: ${file}`);
-      
+
+      // BaekjoonHub는 폴더명에 U+2005(FOUR-PER-EM SPACE)를 사용함
+      // workflow_dispatch 등에서 일반 공백으로 입력된 경우 변환
       if (!fs.existsSync(file)) {
-        console.log(`⚠️  File not found: ${file}`);
-        continue;
+        const fixedFile = file.replace(/ /g, '\u2005');
+        if (fs.existsSync(fixedFile)) {
+          file = fixedFile;
+        } else {
+          console.log(`⚠️  File not found: ${file}`);
+          continue;
+        }
       }
       
       const code = fs.readFileSync(file, 'utf-8');
