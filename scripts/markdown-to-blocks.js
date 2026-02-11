@@ -50,17 +50,30 @@ export function markdownToBlocks(markdown) {
       }
       
       const codeContent = codeLines.join('\n');
-      // Notion 코드 블록은 2000자 제한
+      const langMap = { java: 'java', python: 'python', cpp: 'c++', c: 'c' };
+      const notionLang = langMap[language] || 'plain text';
+
+      // Notion 코드 블록은 2000자 제한 → 줄 단위로 끊어서 분할
       if (codeContent.length > 1900) {
-        // 긴 코드는 여러 블록으로 분할
-        const chunks = codeContent.match(/.{1,1900}/g) || [];
-        chunks.forEach((chunk, idx) => {
+        const chunks = [];
+        let current = '';
+        for (const codeLine of codeLines) {
+          if (current.length + codeLine.length + 1 > 1900 && current.length > 0) {
+            chunks.push(current);
+            current = codeLine;
+          } else {
+            current = current ? current + '\n' + codeLine : codeLine;
+          }
+        }
+        if (current) chunks.push(current);
+
+        chunks.forEach(chunk => {
           blocks.push({
             object: 'block',
             type: 'code',
             code: {
               rich_text: [{ type: 'text', text: { content: chunk } }],
-              language: language === 'java' ? 'java' : language === 'python' ? 'python' : 'plain text',
+              language: notionLang,
             },
           });
         });
@@ -70,7 +83,7 @@ export function markdownToBlocks(markdown) {
           type: 'code',
           code: {
             rich_text: [{ type: 'text', text: { content: codeContent } }],
-            language: language === 'java' ? 'java' : language === 'python' ? 'python' : 'plain text',
+            language: notionLang,
           },
         });
       }
