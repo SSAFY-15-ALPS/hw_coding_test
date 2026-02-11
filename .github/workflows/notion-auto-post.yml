@@ -4,9 +4,15 @@ on:
   push:
     paths:
       - '백준/**/*.java'
-      - '프로그래머스/**/*.java'
+      - 'SWEA/**/*.java'
       - '백준/**/*.py'
       - '백준/**/*.cpp'
+  workflow_dispatch:
+    inputs:
+      file_path:
+        description: '처리할 파일 경로'
+        required: true
+        default: '백준/Bronze/10998.A×B/A×B.java'
 
 jobs:
   create-notion-post:
@@ -16,24 +22,41 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v3
         with:
-          fetch-depth: 2
+          fetch-depth: 0
       
       - name: Get changed files
         id: changed-files
         run: |
-          echo "files=$(git diff --name-only HEAD~1 HEAD | grep -E '\.(java|py|cpp)$' | tr '\n' ' ')" >> $GITHUB_OUTPUT
+          if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
+            echo "files=${{ github.event.inputs.file_path }}" >> $GITHUB_OUTPUT
+          else
+            # 백준, SWEA 코드 파일 찾기
+            CHANGED=$(git diff --name-only HEAD~1 HEAD 2>/dev/null | grep -E '(백준|SWEA)/.*\.(java|py|cpp)$' | tr '\n' ' ')
+            if [ -z "$CHANGED" ]; then
+              # git diff 실패 시 최근 추가된 파일 찾기
+              CHANGED=$(git log -1 --name-only --pretty=format: | grep -E '(백준|SWEA)/.*\.(java|py|cpp)$' | tr '\n' ' ')
+            fi
+            echo "files=$CHANGED" >> $GITHUB_OUTPUT
+          fi
+      
+      - name: Debug - Show files
+        run: |
+          echo "Changed files: ${{ steps.changed-files.outputs.files }}"
       
       - name: Setup Node.js
+        if: steps.changed-files.outputs.files != ''
         uses: actions/setup-node@v3
         with:
           node-version: '18'
       
       - name: Install dependencies
+        if: steps.changed-files.outputs.files != ''
         run: |
           cd scripts
           npm install
       
       - name: Generate Notion Post
+        if: steps.changed-files.outputs.files != ''
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           NOTION_TOKEN: ${{ secrets.NOTION_TOKEN }}

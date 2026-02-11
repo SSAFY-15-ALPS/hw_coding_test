@@ -69,31 +69,44 @@ ${code}
 function parseFilePath(filePath) {
   const parts = filePath.split('/');
   
+  // 백준 (난이도별 폴더 구조)
   if (parts[0] === '백준') {
-    const folderName = parts[1];
+    const difficulty = parts[1]; // Bronze, Silver, Gold, Platinum, Diamond
+    const folderName = parts[2]; // "10998.A×B"
     const match = folderName.match(/^(\d+)\.(.*)/);
     
     return {
       platform: '백준',
       problemNumber: match ? match[1] : '',
-      title: match ? match[2].replace(/_/g, ' ') : folderName,
+      title: match ? match[2].replace(/_/g, ' ').replace(/×/g, 'x') : folderName,
+      difficulty: difficulty, // Bronze, Silver 등
       url: match ? `https://www.acmicpc.net/problem/${match[1]}` : '',
     };
   }
   
-  if (parts[0] === '프로그래머스') {
+  // SWEA
+  if (parts[0] === 'SWEA') {
+    const level = parts[1]; // D1, D2, D3, D4, D5, Algorithm_track_level_*
+    const folderName = parts[2];
+    
+    // SWEA 파일명 파싱 (보통 "1234.문제이름" 형태)
+    const match = folderName.match(/^(\d+)\.(.*)/);
+    
     return {
-      platform: '프로그래머스',
-      problemNumber: '',
-      title: parts[1]?.replace(/_/g, ' ') || 'Unknown',
-      url: '',
+      platform: 'SWEA',
+      problemNumber: match ? match[1] : '',
+      title: match ? match[2].replace(/_/g, ' ') : folderName,
+      difficulty: level,
+      url: match ? `https://swexpertacademy.com/main/code/problem/problemDetail.do?contestProbId=${match[1]}` : '',
     };
   }
   
+  // 프로그래머스 등 다른 플랫폼
   return {
     platform: parts[0],
     title: parts[1]?.replace(/_/g, ' ') || 'Unknown',
     problemNumber: '',
+    difficulty: null,
     url: '',
   };
 }
@@ -146,6 +159,13 @@ async function postToNotion(title, content, problemInfo, tags) {
         multi_select: tags.map(tag => ({ name: tag })),
       },
     };
+    
+    // 난이도가 있으면 추가
+    if (problemInfo.difficulty) {
+      properties['난이도'] = {
+        select: { name: problemInfo.difficulty },
+      };
+    }
     
     // 문제번호가 있으면 추가
     if (problemInfo.problemNumber) {
