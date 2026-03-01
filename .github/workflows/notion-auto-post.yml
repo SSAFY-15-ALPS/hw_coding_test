@@ -69,6 +69,8 @@ jobs:
           NOTION_TOKEN: ${{ secrets.NOTION_TOKEN }}
           NOTION_DATABASE_ID: ${{ secrets.NOTION_DATABASE_ID }}
           NOTION_ALGO_DATABASE_ID: ${{ secrets.NOTION_ALGO_DATABASE_ID }}
+          N8N_WEBHOOK_URL: ${{ secrets.N8N_WEBHOOK_URL }}
+          N8N_WEBHOOK_TOKEN: ${{ secrets.N8N_WEBHOOK_TOKEN }}
           CHANGED_FILES: ${{ steps.changed-files.outputs.files }}
         run: |
           node scripts/generate-notion-post.js

@@ -379,6 +379,42 @@ async function postToNotion(title, content, problemInfo, tags) {
   }
 }
 
+async function postToN8n(payload) {
+  const webhookUrl = process.env.N8N_WEBHOOK_URL;
+  if (!webhookUrl) {
+    console.log('⏭️  N8N_WEBHOOK_URL not set, skipping n8n webhook');
+    return;
+  }
+
+  const token = process.env.N8N_WEBHOOK_TOKEN;
+  const headers = {
+    'Content-Type': 'application/json',
+  };
+
+  if (token) {
+    headers.Authorization = `Bearer ${token}`;
+  }
+
+  try {
+    const response = await fetch(webhookUrl, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify(payload),
+    });
+
+    const responseText = await response.text();
+    if (!response.ok) {
+      throw new Error(`Webhook failed (${response.status}): ${responseText}`);
+    }
+
+    console.log(`✅ n8n webhook sent: ${response.status}`);
+  } catch (error) {
+    console.error('❌ Error sending n8n webhook:');
+    console.error('Message:', error.message);
+    throw error;
+  }
+}
+
 async function main() {
   const changedFiles = process.env.CHANGED_FILES?.trim().split('\n').filter(Boolean) || [];
 
@@ -434,7 +470,7 @@ async function main() {
       const title = `[${problemInfo.platform}] ${problemInfo.problemNumber ? `${problemInfo.problemNumber}. ` : ''}${problemInfo.title}`;
       
       console.log('📤 Posting to Notion (풀이 회고)...');
-      await postToNotion(title, content, problemInfo, tags);
+      const notionReviewPage = await postToNotion(title, content, problemInfo, tags);
 
       // 알고리즘 학습 포스트 생성
       console.log('🤖 Generating algorithm study post...');
@@ -444,7 +480,31 @@ async function main() {
       const algoTags = extractTags(algoContent, readmeContent);
 
       console.log('📤 Posting to Notion (알고리즘 학습)...');
-      await postAlgoToNotion(algoTitle, algoContent, problemInfo, algoTags);
+      const notionAlgoPage = await postAlgoToNotion(algoTitle, algoContent, problemInfo, algoTags);
+
+      console.log('🔗 Sending content to n8n...');
+      await postToN8n({
+        source: 'github-actions',
+        repository: process.env.GITHUB_REPOSITORY || '',
+        commitSha: process.env.GITHUB_SHA || '',
+        filePath: file,
+        problemInfo,
+        reviewPost: {
+          title,
+          markdown: content,
+          tags,
+          notionUrl: notionReviewPage?.url || null,
+        },
+        algorithmPost: {
+          title: algoTitle,
+          markdown: algoContent,
+          tags: algoTags,
+          notionUrl: notionAlgoPage?.url || null,
+        },
+        code,
+        readmeContent,
+        generatedAt: new Date().toISOString(),
+      });
 
       console.log('✨ Done!\n');
     } catch (error) {
